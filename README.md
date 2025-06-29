@@ -336,3 +336,7 @@ To avoid common setup issues with `Makefile` and environment variables, follow t
 
 8.  **Try POST /employees in Postman.**
     * This should now successfully create a new employee!
+
+9. **Run Swagger Documentation.**
+    ```bash
+    docker run -p 8081:8080 -e SWAGGER_JSON=/app/openapi.yaml -v $(pwd)/api:/app swaggerapi/swagger-ui
