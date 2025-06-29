@@ -1,0 +1,336 @@
+openapi: 3.0.0
+info:
+  title: Starterpack Golang Clean Architecture
+  description: API documentation for Starterpack Golang application.
+  version: 1.0.0
+  contact:
+    name: Muhamad Javier Zamzufar
+    email: your_email@example.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8080
+    description: Local Development Server
+  - url: https://starterpack-dev.co.id
+    description: Development Environment
+  - url: https://starterpack.co.id
+    description: Production Environment
+
+tags:
+  - name: General
+    description: General server information and health checks
+  - name: Employees
+    description: Employee management operations
+  - name: Auth
+    description: User authentication and authorization
+
+paths:
+  /health:
+    get:
+      summary: Health check endpoint
+      operationId: healthCheck
+      tags:
+        - General
+      responses:
+        '200':
+          description: Server is healthy and database is reachable.
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "OK"
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /info:
+    get:
+      summary: Get server information
+      operationId: getServerInfo
+      tags:
+        - General
+      responses:
+        '200':
+          description: Server information.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerInfoResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /employees:
+    get:
+      summary: Get all employees with pagination
+      operationId: getEmployees
+      tags:
+        - Employees
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+          description: Page number for pagination.
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 100
+          description: Number of items per page.
+        - in: query
+          name: query
+          schema:
+            type: string
+          description: Search query for employee name, email, or phone number.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: A paginated list of employees.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeePaginationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      summary: Create a new employee
+      operationId: createEmployee
+      tags:
+        - Employees
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEmployeeRequest'
+      responses:
+        '201':
+          description: Employee successfully created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeeResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /employees/{id}:
+    get:
+      summary: Get employee by ID
+      operationId: getEmployeeByID
+      tags:
+        - Employees
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          required: true
+          description: The ID of the employee to retrieve.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Employee details.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeeResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # Common Error Response Schema (from internal/utils/response.go)
+    ErrorResponse:
+      type: object
+      properties:
+        code:
+          type: string
+          description: Unique application-specific error code.
+          example: "INVALID_INPUT"
+        message:
+          type: string
+          description: Human-readable error message.
+          example: "Invalid request payload or parameters"
+        details:
+          type: string
+          description: Optional, more technical details or validation errors.
+          example: "Validation failed: Name is required"
+
+    # Server Info Response Schema
+    ServerInfoResponse:
+      type: object
+      properties:
+        appName:
+          type: string
+          example: "Starterpack Golang Clean Architecture"
+        appVersion:
+          type: string
+          example: "1.0.0"
+        goVersion:
+          type: string
+          example: "1.22.x"
+        environment:
+          type: string
+          example: "development"
+        currentTime:
+          type: string
+          format: date-time
+          example: "2025-06-28T10:00:00Z"
+
+    # Employee Module DTOs (from internal/app/employee/model.go)
+    CreateEmployeeRequest:
+      type: object
+      required:
+        - name
+        - email
+        - phoneNumber
+      properties:
+        name:
+          type: string
+          example: "John Doe"
+        email:
+          type: string
+          format: email
+          example: "john.doe@email.co.id"
+        phoneNumber:
+          type: string
+          example: "+6281234567890"
+
+    EmployeeResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64 # Changed to int64 for SERIAL PRIMARY KEY
+          example: 1
+        name:
+          type: string
+          example: "John Doe"
+        email:
+          type: string
+          format: email
+          example: "john.doe@email.co.id"
+        phoneNumber:
+          type: string
+          example: "+6281234567890"
+        createdAt:
+          type: string
+          format: date-time
+          example: "2025-06-28T10:00:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2025-06-28T10:30:00Z"
+
+    # Common Pagination Response (from internal/utils/response.go)
+    # Using generics requires a wrapper schema in OpenAPI 3.0.x for clarity.
+    EmployeePaginationResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/EmployeeResponse'
+        total:
+          type: integer
+          format: int64
+          description: Total number of items across all pages.
+          example: 100
+        page:
+          type: integer
+          description: Current page number.
+          example: 1
+        limit:
+          type: integer
+          description: Items per page.
+          example: 10
+        totalPages:
+          type: integer
+          description: Total number of pages.
+          example: 10
+        nextPage:
+          type: integer
+          nullable: true
+          description: Next page number, null if no next page.
+          example: 2
+        prevPage:
+          type: integer
+          nullable: true
+          description: Previous page number, null if no previous page.
+          example: null
+
+  responses:
+    BadRequestError:
+      description: Invalid request payload or parameters.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    UnauthorizedError:
+      description: Authentication required or invalid credentials.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ForbiddenError:
+      description: Access denied for this resource due to insufficient permissions.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFoundError:
+      description: Resource not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ConflictError:
+      description: Resource conflict or already exists.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalServerError:
+      description: An unexpected internal server error occurred.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ServiceUnavailableError:
+      description: Service is temporarily unavailable.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
