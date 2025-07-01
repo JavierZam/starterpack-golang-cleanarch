@@ -1,11 +1,11 @@
 openapi: 3.0.0
 info:
-  title: Starterpack Golang Clean Architecture
-  description: API documentation for Starterpack Golang application.
+  title: Go Starterpack API
+  description: A clean architecture Go backend starterpack API documentation.
   version: 1.0.0
   contact:
-    name: Muhamad Javier Zamzufar
-    email: your_email@example.com
+    name: Your Name
+    email: your.email@example.com
   license:
     name: MIT
     url: https://opensource.org/licenses/MIT
@@ -13,18 +13,16 @@ info:
 servers:
   - url: http://localhost:8080
     description: Local Development Server
-  - url: https://starterpack-dev.co.id
-    description: Development Environment
-  - url: https://starterpack.co.id
+  - url: https://api.example.com # Generic placeholder for production URL
     description: Production Environment
 
 tags:
   - name: General
     description: General server information and health checks
-  - name: Employees
-    description: Employee management operations
   - name: Auth
-    description: User authentication and authorization
+    description: User authentication and management
+  - name: Other_Modules # Placeholder for future modules like Client, Project, etc.
+    description: Other business functionalities
 
 paths:
   /health:
@@ -60,108 +58,118 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /employees:
-    get:
-      summary: Get all employees with pagination
-      operationId: getEmployees
-      tags:
-        - Employees
-      parameters:
-        - in: query
-          name: page
-          schema:
-            type: integer
-            default: 1
-            minimum: 1
-          description: Page number for pagination.
-        - in: query
-          name: limit
-          schema:
-            type: integer
-            default: 10
-            minimum: 1
-            maximum: 100
-          description: Number of items per page.
-        - in: query
-          name: query
-          schema:
-            type: string
-          description: Search query for employee name, email, or phone number.
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: A paginated list of employees.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/EmployeePaginationResponse'
-        '400':
-          $ref: '#/components/responses/BadRequestError'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+  /auth/register:
     post:
-      summary: Create a new employee
-      operationId: createEmployee
+      summary: Register a new user
+      operationId: registerUser
       tags:
-        - Employees
-      security:
-        - BearerAuth: []
+        - Auth
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateEmployeeRequest'
+              $ref: '#/components/schemas/RegisterRequest'
       responses:
         '201':
-          description: Employee successfully created.
+          description: User successfully registered.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/EmployeeResponse'
+                $ref: '#/components/schemas/UserResponse'
         '400':
           $ref: '#/components/responses/BadRequestError'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
         '409':
           $ref: '#/components/responses/ConflictError'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /employees/{id}:
-    get:
-      summary: Get employee by ID
-      operationId: getEmployeeByID
+  /auth/login:
+    post:
+      summary: Log in a user and get JWT tokens
+      operationId: loginUser
       tags:
-        - Employees
-      parameters:
-        - in: path
-          name: id
-          schema:
-            type: string
-            format: uuid
-          required: true
-          description: The ID of the employee to retrieve.
+        - Auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Successful login.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /auth/refresh:
+    post:
+      summary: Refresh access token using a refresh token
+      operationId: refreshTokens
+      tags:
+        - Auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+      responses:
+        '200':
+          description: Tokens successfully refreshed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/user/me:
+    get:
+      summary: Get current authenticated user's info
+      operationId: getCurrentUserInfo
+      tags:
+        - Auth
       security:
         - BearerAuth: []
       responses:
         '200':
-          description: Employee details.
+          description: Successfully retrieved authenticated user info.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/EmployeeResponse'
-        '400':
-          $ref: '#/components/responses/BadRequestError'
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "You accessed an authenticated endpoint!"
+                  userID:
+                    type: string
+                    format: uuid
+                  tenantID:
+                    type: string
+                    format: uuid
+                  role:
+                    type: string
         '401':
           $ref: '#/components/responses/UnauthorizedError'
-        '404':
-          $ref: '#/components/responses/NotFoundError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
         '500':
           $ref: '#/components/responses/InternalServerError'
+
 
 components:
   securitySchemes:
@@ -171,7 +179,6 @@ components:
       bearerFormat: JWT
 
   schemas:
-    # Common Error Response Schema (from internal/utils/response.go)
     ErrorResponse:
       type: object
       properties:
@@ -188,13 +195,12 @@ components:
           description: Optional, more technical details or validation errors.
           example: "Validation failed: Name is required"
 
-    # Server Info Response Schema
     ServerInfoResponse:
       type: object
       properties:
         appName:
           type: string
-          example: "Starterpack Golang Clean Architecture"
+          example: "Go Starterpack Backend"
         appVersion:
           type: string
           example: "1.0.0"
@@ -209,13 +215,14 @@ components:
           format: date-time
           example: "2025-06-28T10:00:00Z"
 
-    # Employee Module DTOs (from internal/app/employee/model.go)
-    CreateEmployeeRequest:
+    RegisterRequest:
       type: object
       required:
         - name
         - email
+        - password
         - phoneNumber
+        - tenant_id
       properties:
         name:
           type: string
@@ -223,73 +230,87 @@ components:
         email:
           type: string
           format: email
-          example: "john.doe@email.co.id"
+          example: "user@example.com"
+        password:
+          type: string
+          format: password
+          minLenght: 8
+          example: "Password123!"
         phoneNumber:
           type: string
-          example: "+6281234567890"
+          example: "+1234567890"
+        tenant_id:
+          type: string
+          format: uuid
+          example: "a1b2c3d4-e5f6-4a7b-8c9d-0f1e2d3c4b5a"
 
-    EmployeeResponse:
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: "user@example.com"
+        password:
+          type: string
+          format: password
+          example: "Password123!"
+
+    AuthResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+          description: JWT Access Token
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiMTIzNDUiLCJ0ZW5hbnRfaWQiOiJhYmMxMjMifQ.signature"
+        refresh_token:
+          type: string
+          description: JWT Refresh Token
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiMTIzNDUifQ.signature"
+        user:
+          $ref: '#/components/schemas/UserResponse'
+
+    RefreshTokenRequest:
+      type: object
+      required:
+        - refresh_token
+      properties:
+        refresh_token:
+          type: string
+          description: JWT Refresh Token
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiMTIzNDUifQ.signature"
+
+    UserResponse:
       type: object
       properties:
         id:
-          type: integer
-          format: int64 # Changed to int64 for SERIAL PRIMARY KEY
-          example: 1
-        name:
           type: string
-          example: "John Doe"
+          format: uuid
+          example: "8c84b42b-5f33-4f9e-b2d4-1a2b3c4d5e6f"
+        tenant_id:
+          type: string
+          format: uuid
+          example: "a1b2c3d4-e5f6-4a7b-8c9d-0f1e2d3c4b5a"
         email:
           type: string
           format: email
-          example: "john.doe@email.co.id"
-        phoneNumber:
+          example: "user@example.com"
+        name:
           type: string
-          example: "+6281234567890"
-        createdAt:
+          example: "John Doe"
+        phone_number:
+          type: string
+          example: "+1234567890"
+        role:
+          type: string
+          example: "user"
+        created_at:
           type: string
           format: date-time
           example: "2025-06-28T10:00:00Z"
-        updatedAt:
-          type: string
-          format: date-time
-          example: "2025-06-28T10:30:00Z"
-
-    # Common Pagination Response (from internal/utils/response.go)
-    # Using generics requires a wrapper schema in OpenAPI 3.0.x for clarity.
-    EmployeePaginationResponse:
-      type: object
-      properties:
-        data:
-          type: array
-          items:
-            $ref: '#/components/schemas/EmployeeResponse'
-        total:
-          type: integer
-          format: int64
-          description: Total number of items across all pages.
-          example: 100
-        page:
-          type: integer
-          description: Current page number.
-          example: 1
-        limit:
-          type: integer
-          description: Items per page.
-          example: 10
-        totalPages:
-          type: integer
-          description: Total number of pages.
-          example: 10
-        nextPage:
-          type: integer
-          nullable: true
-          description: Next page number, null if no next page.
-          example: 2
-        prevPage:
-          type: integer
-          nullable: true
-          description: Previous page number, null if no previous page.
-          example: null
 
   responses:
     BadRequestError:
