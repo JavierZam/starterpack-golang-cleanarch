@@ -10,9 +10,11 @@ import (
 	"syscall"
 	"time"
 
-	"starterpack-golang-cleanarch/internal/app/employee"
-	"starterpack-golang-cleanarch/internal/platform/http/middleware"
+	// Import modul auth yang baru
+	"starterpack-golang-cleanarch/internal/app/auth"
 	"starterpack-golang-cleanarch/internal/repository"
+
+	"starterpack-golang-cleanarch/internal/platform/http/middleware"
 	"starterpack-golang-cleanarch/internal/utils"
 	"starterpack-golang-cleanarch/internal/utils/log"
 
@@ -23,7 +25,6 @@ import (
 )
 
 func main() {
-	// 1. Initialize Logger
 	env := os.Getenv("APP_ENV")
 	if env == "" {
 		env = "development"
@@ -32,7 +33,6 @@ func main() {
 	defer log.Sync()
 	log.Info(context.Background(), fmt.Sprintf("Starting %s in %s environment...", os.Getenv("APP_NAME"), env))
 
-	// 2. Database Connection
 	dbHost := os.Getenv("DB_HOST")
 	if dbHost == "" {
 		dbHost = "localhost"
@@ -76,13 +76,11 @@ func main() {
 		}
 	}()
 
-	// 3. Initialize Validator
 	appValidator := validator.New()
 
-	// 4. Setup Main Router (using Gorilla Mux)
 	r := mux.NewRouter()
 
-	// 5. Register General Endpoints (NO AUTHENTICATION)
+	// Register General Endpoints (NO AUTHENTICATION)
 	r.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		if err := db.PingContext(r.Context()); err != nil {
 			http.Error(w, "Database not reachable", http.StatusInternalServerError)
@@ -110,22 +108,61 @@ func main() {
 		utils.RespondJSON(w, http.StatusOK, info)
 	}).Methods("GET")
 
-	// 6. Create a Sub-Router for Authenticated Routes
-	authenticatedRouter := r.PathPrefix("/").Subrouter()
+	// --- Dependency Injection (DI) & Feature Module Registration ---
+
+	// Auth Module Wiring
+	userRepo := repository.NewPostgreSQLUserRepository(db)
+	authService := auth.NewAuthService(userRepo)
+	authHandler := auth.NewAuthHandler(authService, appValidator)
+	// Auth routes (login/register/refresh) usually don't need authentication middleware,
+	// so register them directly on the main router 'r'.
+	authHandler.RegisterRoutes(r)
+
+	// Create a Sub-Router for Authenticated Routes
+	// All routes registered on this sub-router will have the specified middlewares applied.
+	authenticatedRouter := r.PathPrefix("/api/v1").Subrouter() // All authenticated API endpoints will start with /api/v1
 	authenticatedRouter.Use(middleware.RecoveryMiddleware)
 	authenticatedRouter.Use(middleware.LoggingMiddleware)
 	authenticatedRouter.Use(middleware.AuthMiddleware)
 
-	// --- Dependency Injection (DI) & Feature Module Registration ---
-	// Employee Module Wiring - ACTUAL IMPLEMENTATION FOR DEMO
-	employeeRepo := repository.NewPostgreSQLEmployeeRepository(db)
-	employeeService := employee.NewEmployeeService(employeeRepo)
-	employeeHandler := employee.NewEmployeeHandler(employeeService, appValidator)
-	employeeHandler.RegisterRoutes(authenticatedRouter)
+	// Example of an authenticated endpoint (user info)
+	authenticatedRouter.HandleFunc("/user/me", func(w http.ResponseWriter, r *http.Request) {
+		userID := r.Context().Value(middleware.ContextKeyUserID).(string)
+		tenantID := r.Context().Value(middleware.ContextKeyTenantID).(string)
+		userRole := r.Context().Value(middleware.ContextKeyUserRole).(string)
 
-	// Other modules (e.g., Auth, Reporting) will be wired here too.
+		resp := map[string]string{
+			"message":  "You accessed an authenticated endpoint!",
+			"userID":   userID,
+			"tenantID": tenantID,
+			"role":     userRole,
+		}
+		utils.RespondJSON(w, http.StatusOK, resp)
+	}).Methods("GET")
 
-	// 7. Start HTTP Server
+	// --- Placeholder for future authenticated modules (e.g., Client, Project, Tax Report) ---
+	/*
+		// Example: Project Module Wiring (if it needs authentication)
+		projectRepo := repository.NewPostgreSQLProjectRepository(db)
+		projectService := projects.NewProjectService(projectRepo)
+		projectHandler := projects.NewProjectHandler(projectService, appValidator)
+		projectHandler.RegisterRoutes(authenticatedRouter) // Register Project routes on authenticated sub-router
+	*/
+
+	// --- Employee Module Demo (DISABLED BY DEFAULT) ---
+	// This module is kept for architectural demonstration purposes but is not wired
+	// by default as its database schema is not compatible with the new 'users' table.
+	/*
+		// If you want to enable the employee demo, you would need to:
+		// 1. Revert your database migration to the old 'users' table schema (or create a new migration for it).
+		// 2. Uncomment the following lines:
+		// employeeRepo := repository.NewPostgreSQLEmployeeRepository(db)
+		// employeeService := employee.NewEmployeeService(employeeRepo)
+		// employeeHandler := employee.NewEmployeeHandler(employeeService, appValidator)
+		// employeeHandler.RegisterRoutes(authenticatedRouter)
+	*/
+	// --- END Employee Module Demo ---
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
@@ -145,7 +182,6 @@ func main() {
 		}
 	}()
 
-	// 8. Graceful Shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
