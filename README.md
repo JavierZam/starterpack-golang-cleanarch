@@ -131,47 +131,7 @@ Use `curl` or tools like Postman/Insomnia to test these endpoints. For authentic
 
 This project structure adheres to Clean Architecture principles for clear modularity and separation of concerns:
 
-
-starterpack-golang-cleanarch/
-├── cmd/             # Main application entry points
-│   └── server/      # HTTP server entry point (main.go) - Handles Dependency Injection & App Wiring
-├── internal/        # Private application and library code (not importable by external Go projects)
-│   ├── app/         # Application Core / Use Cases / Services
-│   │   ├── auth/    # User Authentication module (Register, Login, Refresh)
-│   │   │   ├── handler.go
-│   │   │   ├── service.go
-│   │   │   ├── model.go
-│   │   │   └── errors.go
-│   │   └── employee/ # DEMO MODULE: Employee management (files present, but not wired by default)
-│   │       ├── handler.go
-│   │       ├── service.go
-│   │       ├── model.go
-│   │       └── errors.go
-│   ├── domain/      # Core Domain Entities / Enterprise Business Rules
-│   │   ├── user.go  # User entity (used by Auth module)
-│   │   └── employee.go # DEMO ENTITY: Employee entity (not used by default)
-│   ├── repository/  # Database Interaction Logic (Persistence Layer)
-│   │   ├── user_psql.go # User repository for PostgreSQL
-│   │   └── employee_psql.go # DEMO REPOSITORY: Employee repository (not used by default)
-│   ├── utils/       # General utility functions and common helpers
-│   │   ├── errors/  # Global custom error definitions (AppError interface, common errors)
-│   │   ├── log/     # Structured logging abstraction (Zap wrapper)
-│   │   ├── jwt.go   # JWT token generation and validation utilities
-│   │   └── response.go # Common JSON response and HTTP error handling helpers, Pagination DTOs
-│   ├── platform/    # Integrations with external systems/frameworks
-│   │   └── http/
-│   │       └── middleware/ # Global HTTP middlewares (auth, logging, recovery)
-├── migrations/      # SQL files for database schema migrations
-│   └── 000001_create_auth_tables.up.sql # Initial migration for users table (Auth module)
-│   └── 000001_create_auth_tables.down.sql
-├── api/             # API definitions (OpenAPI/Swagger specs)
-│   └── openapi.yaml
-├── scripts/         # Useful shell scripts (e.g., setup, deployment)
-├── Dockerfile       # Docker build instructions for the application
-├── Makefile         # Automation commands for development tasks
-├── .env.example     # Example for environment variables
-└── go.mod           # Go modules file
-
+![Project Architecture](https://github.com/JavierZam/starterpack-golang-cleanarch/blob/master/architecture.png?raw=true)
 
 ## ⚙️ Development Guide
 
