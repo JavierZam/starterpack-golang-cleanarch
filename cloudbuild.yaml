@@ -22,10 +22,7 @@ steps:
 
   # 4. Database Migrations (using golang-migrate CLI)
   # This step runs migrations on the target database before deploying the new application version.
-  # Ensure your Cloud Build service account has permissions to access Secret Manager (if used)
-  # and Cloud SQL (if using Cloud SQL Auth Proxy or direct connection).
-  # DB_HOST, DB_PORT, DB_USER, DB_NAME, DB_PASSWORD should be set as environment variables
-  # in Cloud Build, possibly from Secret Manager.
+  # Secrets are now available via the 'availableSecrets' block.
   - name: 'alpine/git' # Use a simple image with curl/tar/git
     id: 'Run Migrations'
     entrypoint: 'sh'
@@ -38,23 +35,13 @@ steps:
         mv migrate /usr/local/bin/migrate
         chmod +x /usr/local/bin/migrate
 
-        # Construct database URL from environment variables
-        DB_URL="postgresql://${_DB_USER}:${_DB_PASSWORD}@${_DB_HOST}:${_DB_PORT}/${_DB_NAME}?sslmode=disable"
+        # Construct database URL from environment variables provided by availableSecrets
+        # Note: $$ is used to escape $ for shell, so it's interpreted as literal $ by migrate
+        DB_URL="postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=disable"
         
         # Run migrations up
         /usr/local/bin/migrate -path ./migrations -database "$$DB_URL" up
-    # Define environment variables for database connection (these would be set in Cloud Build triggers)
-    # Use _VAR_NAME for variables that might come from Secret Manager
-    env:
-      - _DB_HOST=${_DB_HOST}
-      - _DB_PORT=${_DB_PORT}
-      - _DB_USER=${_DB_USER}
-      - _DB_PASSWORD=${_DB_PASSWORD}
-      - _DB_NAME=${_DB_NAME}
-    secretEnv: ['_DB_PASSWORD'] # Declare DB_PASSWORD as a secret variable
-    # Bind secrets from Secret Manager
-    # available in Cloud Build trigger settings
-    # e.g., _DB_PASSWORD: projects/PROJECT_ID/secrets/DB_PASSWORD/versions/latest
+    # No 'env' or 'secretEnv' needed here, as secrets are globally available via availableSecrets.
 
   # 5. Build and Push Docker Image
   - name: 'gcr.io/cloud-builders/docker'
@@ -66,6 +53,7 @@ steps:
     args: ['push', 'gcr.io/$PROJECT_ID/starterpack-golang-cleanarch:$COMMIT_SHA']
 
   # 6. Deploy to Cloud Run
+  # Secrets are passed as environment variables to Cloud Run, using values from availableSecrets.
   - name: 'gcr.io/cloud-builders/gcloud'
     id: 'Deploy to Cloud Run'
     args:
@@ -77,23 +65,29 @@ steps:
       - '--platform=managed'
       - '--allow-unauthenticated' # Hapus ini jika Anda ingin layanan menjadi private
       - '--set-env-vars=APP_ENV=production' # Set production environment variable
-      # Pass other necessary environment variables for the application
-      - '--set-env-vars=JWT_SECRET=${_JWT_SECRET}'
-      - '--set-env-vars=DB_HOST=${_DB_HOST},DB_PORT=${_DB_PORT},DB_USER=${_DB_USER},DB_NAME=${_DB_NAME}'
-    secretEnv: ['_JWT_SECRET'] # Declare secret environment variables for Cloud Run deployment
-    # Bind secrets from Secret Manager
-    # available in Cloud Build trigger settings
-    # e.g., _JWT_SECRET: projects/PROJECT_ID/secrets/JWT_SECRET/versions/latest
+      # Pass secrets as environment variables to the Cloud Run service
+      - '--set-env-vars=JWT_SECRET=${JWT_SECRET}'
+      - '--set-env-vars=DB_HOST=${DB_HOST},DB_PORT=${DB_PORT},DB_USER=${DB_USER},DB_NAME=${DB_NAME},DB_PASSWORD=${DB_PASSWORD}'
+    # No 'secretEnv' needed here, as secrets are globally available via availableSecrets.
 
 # Images to be pushed to Artifact Registry (or GCR)
 images:
   - 'gcr.io/$PROJECT_ID/starterpack-golang-cleanarch:$COMMIT_SHA'
 
-# Declare secrets for Cloud Build to access Secret Manager
-# This part goes into your Cloud Build Trigger settings, not directly in cloudbuild.yaml
-# For example, in the Cloud Build UI, under "Secrets" section for your trigger:
-#   _DB_PASSWORD: projects/PROJECT_ID/secrets/DB_PASSWORD/versions/latest
-#   _JWT_SECRET: projects/PROJECT_ID/secrets/JWT_SECRET/versions/latest
-#   _DB_HOST: projects/PROJECT_ID/secrets/DB_HOST/versions/latest # If DB_HOST is also a secret
-#   _DB_USER: projects/PROJECT_ID/secrets/DB_USER/versions/latest # If DB_USER is also a secret
-#   _DB_NAME: projects/PROJECT_ID/secrets/DB_NAME/versions/latest # If DB_NAME is also a secret
+# --- NEW BLOCK: availableSecrets ---
+# This block defines secrets from Secret Manager that will be available as environment variables
+# to ALL steps in the build.
+availableSecrets:
+  secretManager:
+  - versionName: projects/${PROJECT_NUMBER}/secrets/db-password-prod/versions/latest # Menggunakan variabel PROJECT_NUMBER
+    env: 'DB_PASSWORD' # The environment variable name that will be used in build steps
+  - versionName: projects/${PROJECT_NUMBER}/secrets/jwt-secret-prod/versions/latest # Menggunakan variabel PROJECT_NUMBER
+    env: 'JWT_SECRET' # The environment variable name that will be used in build steps
+  - versionName: projects/${PROJECT_NUMBER}/secrets/db-host-prod/versions/latest # Menggunakan variabel PROJECT_NUMBER
+    env: 'DB_HOST'
+  - versionName: projects/${PROJECT_NUMBER}/secrets/db-user-prod/versions/latest # Menggunakan variabel PROJECT_NUMBER
+    env: 'DB_USER'
+  - versionName: projects/${PROJECT_NUMBER}/secrets/db-name-prod/versions/latest # Menggunakan variabel PROJECT_NUMBER
+    env: 'DB_NAME'
+  # DB_PORT is typically not a secret (standard 5432) and can be hardcoded or passed via substitutions.
+  # For simplicity, we will pass it via --set-env-vars directly in the deploy step.
