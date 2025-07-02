@@ -91,3 +91,6 @@ availableSecrets:
     env: 'DB_NAME'
   # DB_PORT is typically not a secret (standard 5432) and can be hardcoded or passed via substitutions.
   # For simplicity, we will pass it via --set-env-vars directly in the deploy step.
+
+options:
+  logging: CLOUD_LOGGING_ONLY
